@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
-
+import time
+from utils.pdf_saver import save_canvas_as_pdf
 from vision.hand_tracking import HandTracker
 from vision.gesture_classifier import GestureClassifier
 from state.gesture_fsm import GestureFSM
@@ -29,6 +30,11 @@ SHAPES = ["FREE", "LINE", "RECTANGLE", "CIRCLE", "TRIANGLE"]
 SHAPE_BOX = 40
 SHAPE_SELECT_THRESHOLD = 15
 COLOR_SELECT_THRESHOLD = 15
+
+# ================= SAVE BUTTON =================
+SAVE_BTN_W = 90
+SAVE_BTN_H = 35
+SAVE_HOLD_TIME = 3.0  # seconds
 
 
 def normalize_points(points):
@@ -59,6 +65,9 @@ def main():
     prev_state = None
     current_color = COLORS[0]
     current_shape = "FREE"
+    save_hover_start = None
+    save_success_time = None
+
 
     color_hold_counter = 0
     shape_hold_counter = 0
@@ -79,6 +88,32 @@ def main():
         # ================= GESTURE =================
         gesture = classifier.classify(landmarks)
         state = fsm.update(gesture)
+
+        # ================= SAVE BUTTON LOGIC =================
+        h, w = frame.shape[:2]
+        SAVE_X = w - SAVE_BTN_W - 20
+        SAVE_Y = h - SAVE_BTN_H - 20
+
+        if state != "DRAW" and landmarks and 8 in landmarks:
+            ix, iy = landmarks[8]
+            inside_save = (
+                SAVE_X < ix < SAVE_X + SAVE_BTN_W and
+                SAVE_Y < iy < SAVE_Y + SAVE_BTN_H
+            )
+
+            now = time.time()
+
+            if inside_save:
+                if save_hover_start is None:
+                    save_hover_start = now
+                elif now - save_hover_start >= SAVE_HOLD_TIME:
+                    if not save_success_time or now - save_success_time > 2:
+                        save_canvas_as_pdf(canvas.canvas)
+                        save_success_time = now
+                    save_hover_start = None
+            else:
+                save_hover_start = None
+
 
         # ================= PALM ERASER OVERRIDE =================
         if landmarks and classifier.is_palm_open(landmarks):
@@ -179,6 +214,28 @@ def main():
             hull = cv2.convexHull(hand_pts)
             cv2.fillConvexPoly(canvas.canvas, hull, (255, 255, 255))  # FIXED
 
+        # ================= ERASER VISUAL FEEDBACK =================
+        if state == "ERASE" and landmarks:
+            hand_pts = np.array(list(landmarks.values()), dtype=np.int32)
+            hull = cv2.convexHull(hand_pts)
+
+            # Draw hull outline
+            cv2.polylines(frame, [hull], True, (0, 0, 255), 2)
+
+            # Label position (topmost point of hand)
+            top_point = hull[hull[:, :, 1].argmin()][0]
+
+            cv2.putText(
+                frame,
+                "ERASER",
+                (top_point[0] - 40, top_point[1] - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (0, 0, 255),
+                2
+            )
+
+
         # ================= DRAWING =================
         if state == "DRAW" and landmarks and 8 in landmarks:
             if stroke.prev is None:
@@ -245,6 +302,51 @@ def main():
                     (0, 255, 255),
                     2
                 )
+        # ================= SAVE BUTTON UI =================
+        cv2.rectangle(
+                frame,
+                (SAVE_X, SAVE_Y),
+                (SAVE_X + SAVE_BTN_W, SAVE_Y + SAVE_BTN_H),
+                (0, 255, 0),
+                2
+            )
+
+        cv2.putText(
+            frame,
+            "SAVE",
+            (SAVE_X + 18, SAVE_Y + 25),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (0, 255, 0),
+            2
+        )
+
+        # -------- HOLD PROGRESS BAR --------
+        if save_hover_start:
+                progress = min((time.time() - save_hover_start) / SAVE_HOLD_TIME, 1.0)
+                bar_w = int(SAVE_BTN_W * progress)
+
+                cv2.rectangle(
+                    frame,
+                    (SAVE_X, SAVE_Y - 8),
+                    (SAVE_X + bar_w, SAVE_Y - 2),
+                    (0, 255, 0),
+                    -1
+                )
+
+
+        # -------- SAVED FEEDBACK --------
+        if save_success_time and time.time() - save_success_time < 2:
+                cv2.putText(
+                    frame,
+                    "PDF SAVED!",
+                    (SAVE_X, SAVE_Y - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    (0, 255, 0),
+                    2
+                )
+
 
 
         cv2.putText(frame, f"STATE: {state}", (30, 50),
