@@ -1,6 +1,7 @@
 import cv2
 import mediapipe as mp
 
+
 class HandTracker:
     def __init__(self):
         self.mp_hands = mp.solutions.hands
@@ -23,6 +24,7 @@ class HandTracker:
             for idx, lm in enumerate(hand.landmark):
                 landmarks[idx] = (int(lm.x * w), int(lm.y * h))
 
+            # Draw hand skeleton on frame
             self.drawer.draw_landmarks(
                 frame, hand, self.mp_hands.HAND_CONNECTIONS
             )
