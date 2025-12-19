@@ -1,7 +1,10 @@
 from collections import deque
 import numpy as np
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 5db4b12 (RS Initial AirCanvas implementation with save feature)
 class MovingAverage:
     def __init__(self, size=5):
         self.size = size

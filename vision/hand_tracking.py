@@ -27,4 +27,8 @@ class HandTracker:
                 frame, hand, self.mp_hands.HAND_CONNECTIONS
             )
 
+<<<<<<< HEAD
         return landmarks
+=======
+        return landmarks
+>>>>>>> 5db4b12 (RS Initial AirCanvas implementation with save feature)

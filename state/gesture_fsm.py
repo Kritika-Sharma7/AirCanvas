@@ -15,4 +15,6 @@ class GestureFSM:
             self.state = gesture
 
         self.last_gesture = gesture
+        
         return self.state
+
